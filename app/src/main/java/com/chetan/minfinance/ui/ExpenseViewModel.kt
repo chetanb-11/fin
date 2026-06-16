@@ -44,7 +44,13 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         }
     }
 
-    fun addManualExpense(merchantName: String, amount: Double, category: String? = null) {
+    fun updateExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.updateExpense(expense)
+        }
+    }
+
+    fun addManualExpense(merchantName: String, amount: Double, category: String? = null, isIncome: Boolean = false) {
         viewModelScope.launch {
             val isCat = category != null
             val expense = Expense(
@@ -52,7 +58,8 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                 amount = amount,
                 timestamp = System.currentTimeMillis(),
                 category = category,
-                isCategorized = isCat
+                isCategorized = isCat,
+                isIncome = isIncome
             )
             repository.insertExpense(expense)
         }

@@ -10,5 +10,6 @@ data class Expense(
     val amount: Double,
     val timestamp: Long = System.currentTimeMillis(),
     val category: String? = null,
-    val isCategorized: Boolean = false
+    val isCategorized: Boolean = false,
+    val isIncome: Boolean = false
 )

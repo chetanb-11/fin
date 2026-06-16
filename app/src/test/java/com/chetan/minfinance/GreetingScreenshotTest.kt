@@ -32,7 +32,8 @@ class GreetingScreenshotTest {
           ),
           formatter = java.text.DecimalFormat("₹#,##0.00"),
           onCategorize = {},
-          onDelete = {}
+          onDelete = {},
+          onClick = {}
         )
       } 
     }
