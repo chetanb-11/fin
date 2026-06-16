@@ -31,6 +31,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.chetan.minfinance.data.Expense
 import com.chetan.minfinance.service.SmsNotificationListenerService
 import java.text.DecimalFormat
@@ -81,13 +84,17 @@ fun DashboardScreen(
     }
 
     // Checking system permission on lifecycle/resume
-    DisposableEffect(Unit) {
-        val observer = {
-            isPermissionGranted = SmsNotificationListenerService.isPermissionGranted(context)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isPermissionGranted = SmsNotificationListenerService.isPermissionGranted(context)
+            }
         }
-        // Poll permission shortly on load/re-entry
-        observer()
-        onDispose {}
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // Input States for adding/simulating

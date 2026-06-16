@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+import androidx.core.app.NotificationManagerCompat
+
 class SmsNotificationListenerService : NotificationListenerService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -83,7 +85,17 @@ class SmsNotificationListenerService : NotificationListenerService() {
                 context.contentResolver, 
                 "enabled_notification_listeners"
             )
-            return flat != null && flat.contains(cn.flattenToString())
+            val isEnabledBySettings = flat != null && (
+                flat.contains(cn.flattenToString()) || 
+                flat.contains(cn.flattenToShortString()) ||
+                flat.contains(context.packageName)
+            )
+
+            // Direct check using helper API as well
+            val isEnabledByCompat = NotificationManagerCompat.getEnabledListenerPackages(context)
+                .contains(context.packageName)
+
+            return isEnabledBySettings || isEnabledByCompat
         }
     }
 }
