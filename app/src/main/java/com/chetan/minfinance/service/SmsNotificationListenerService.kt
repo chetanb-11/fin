@@ -37,40 +37,48 @@ class SmsNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        super.onNotificationPosted(sbn)
-        if (sbn == null) return
+    super.onNotificationPosted(sbn)
+    if (sbn == null) return
 
-        val packageName = sbn.packageName ?: ""
-        
-        // Performance Guardrail: Drop execution immediately if it's not a financial target
-        if (!targetPackages.contains(packageName) && !packageName.contains("sms", ignoreCase = true)) {
-            return
-        }
-
-        val extras = sbn.notification.extras ?: return
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
-
-        // Try parsing primary text body first, fallback to bigText
-        var parsed = NotificationParser.parse(text)
-        if (parsed == null && bigText.isNotEmpty()) {
-            parsed = NotificationParser.parse(bigText)
-        }
-
-        if (parsed != null) {
-            Log.d(TAG, "Successfully intercepted transaction: ${parsed.merchantName} -> Rs. ${parsed.amount}")
-            serviceScope.launch {
-                val expense = Expense(
-                    merchantName = parsed.merchantName,
-                    amount = parsed.amount,
-                    timestamp = System.currentTimeMillis(),
-                    category = null,
-                    isCategorized = false
-                )
-                repository.insertExpense(expense)
-            }
-        }
+    val packageName = sbn.packageName ?: ""
+    
+    // Guardrail: Target Paytm, Google Pay, PhonePe, and system SMS apps
+    if (packageName != "net.one97.paytm" && 
+        packageName != "com.google.android.apps.nbu.paisa.user" && 
+        packageName != "com.phonepe.app" && 
+        !packageName.contains("sms", ignoreCase = true)) {
+        return
     }
+
+    val extras = sbn.notification.extras ?: return
+    val title = extras.getString(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
+    val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+    val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+
+    // CRITICAL FIX: Combine Title and Text because Paytm often splits merchant/amount across fields
+    val combinedPayload = "$title $text $bigText".trim()
+
+    // Debug print to Logcat so you can check exact formats via USB connection
+    Log.d("FinboxSupport", "Intercepted Target [$packageName]: $combinedPayload")
+
+    val parsed = NotificationParser.parse(combinedPayload)
+
+    if (parsed != null) {
+        Log.d("FinboxSupport", "Parsing Success: ${parsed.merchantName} | Rs. ${parsed.amount}")
+        serviceScope.launch {
+            val expense = com.chetan.minfinance.data.Expense(
+                merchantName = parsed.merchantName,
+                amount = parsed.amount,
+                timestamp = System.currentTimeMillis(),
+                category = null,
+                isCategorized = false
+            )
+            repository.insertExpense(expense)
+        }
+    } else {
+        Log.d("FinboxSupport", "Parsing Dropped: Text did not match any compiled regex patterns.")
+    }
+}
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
