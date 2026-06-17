@@ -24,9 +24,7 @@ class SmsNotificationListenerService : NotificationListenerService() {
 
     // Allowed financial app bundles to save system battery
     private val targetPackages = setOf(
-        "net.one97.paytm",          // Paytm App
-        "com.google.android.apps.nbu.paisa.user", // Google Pay
-        "com.phonepe.app"           // PhonePe
+        "com.google.android.gm"     // Gmail
     )
 
     override fun onCreate() {
@@ -37,31 +35,33 @@ class SmsNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-    super.onNotificationPosted(sbn)
-    if (sbn == null) return
+        super.onNotificationPosted(sbn)
+        if (sbn == null) return
 
-    val packageName = sbn.packageName ?: ""
-    
-    // Guardrail: Target Paytm, Google Pay, PhonePe, and system SMS apps
-    if (packageName != "net.one97.paytm" && 
-        packageName != "com.google.android.apps.nbu.paisa.user" && 
-        packageName != "com.phonepe.app" && 
-        !packageName.contains("sms", ignoreCase = true)) {
-        return
-    }
+        val packageName = sbn.packageName ?: ""
+        
+        // Guardrail: Target Gmail package exclusively
+        if (packageName != "com.google.android.gm") {
+            return
+        }
 
-    val extras = sbn.notification.extras ?: return
-    val title = extras.getString(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
-    val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
-    val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+        val extras = sbn.notification.extras ?: return
+        val title = extras.getString(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
+        val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+        val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
 
-    // CRITICAL FIX: Combine Title and Text because Paytm often splits merchant/amount across fields
-    val combinedPayload = "$title $text $bigText".trim()
+        // Combine Title, Text, and Big Text
+        val combinedPayload = "$title $text $bigText".trim()
 
-    // Debug print to Logcat so you can check exact formats via USB connection
-    Log.d("FinboxSupport", "Intercepted Target [$packageName]: $combinedPayload")
+        // Strict Guardrail: Check for IndusInd (case-insensitive)
+        if (!combinedPayload.contains("IndusInd", ignoreCase = true)) {
+            return
+        }
 
-    val parsed = NotificationParser.parse(combinedPayload)
+        // Debug print to Logcat so you can check exact formats via USB connection
+        Log.d("FinboxSupport", "Intercepted Target [$packageName]: $combinedPayload")
+
+        val parsed = NotificationParser.parse(combinedPayload)
 
     if (parsed != null) {
         Log.d("FinboxSupport", "Parsing Success: ${parsed.merchantName} | Rs. ${parsed.amount}")

@@ -10,39 +10,36 @@ data class ParsedTransaction(
 object NotificationParser {
     private const val TAG = "NotificationParser"
 
-    // Patterns designed to extract transactions of the form:
-    // - "Paid Rs. 150 to Swiggy"
-    // - "Sent ₹ 25.50 to Raju Chai"
-    // - "Successfully paid Paytm Rs 350 to BigBasket"
-    // - "Rs. 450 debited at Petrol Pump"
-    // - "Rs. 250 charged on Netflix"
+    // Patterns designed to extract transactions specifically targeting standard Indian credit card email alerting formats:
+    // - "INR 450.00 spent at SWIGGY on"
+    // - "amount of INR 1,250.50 has been debited at AMAZON PAY on"
+    // - "spent at SWIGGY on your IndusInd Credit Card for INR 450.00"
     private val PATTERNS = listOf(
-        // Pattern 1: Paid/Sent/Debited X to/at/on Y
-        Regex("(?i)(?:Paid|Sent|Transfer|Debited|Charged)\\s*(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:to|at|on|for)\\s+([^.,\\n]+)"),
+        // Pattern 0: Amount first, then Merchant
+        Regex("(?i)(?:amount of\\s+)?(?:INR|Rs\\.?)\\s*([\\d,]+(?:\\.\\d{1,2})?).*?(?:spent\\s+at|debited\\s+at|at)\\s+([^.\\n]+?)\\s+(?:on|at)"),
         
-        // Pattern 2: X paid to Y
-        Regex("(?i)(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:paid|debited|sent|transferred)\\s+(?:successfully\\s+)?(?:to|at)\\s+([^.,\\n]+)"),
-        
-        // Pattern 3: Transaction at Y for X
-        Regex("(?i)(?:Txn|Transaction)*\\s*at\\s+([^.,\\n]+)\\s+for\\s+(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)")
+        // Pattern 1: Merchant first, then Amount
+        Regex("(?i)(?:spent\\s+at|debited\\s+at|at)\\s+([^.\\n]+?)\\s+(?:on|at|for).*?(?:amount of\\s+)?(?:INR|Rs\\.?)\\s*([\\d,]+(?:\\.\\d{1,2})?)")
     )
 
     fun parse(text: String): ParsedTransaction? {
-        Log.d(TAG, "Attempting to parse notification text: \"$text\"")
+        // Gracefully handle line breaks and extra spaces Gmail sometimes injects
+        val sanitizedText = text.replace(Regex("\\s+"), " ").trim()
+        Log.d(TAG, "Attempting to parse notification text: \"$sanitizedText\"")
         
         for ((index, regex) in PATTERNS.withIndex()) {
-            val match = regex.find(text) ?: continue
+            val match = regex.find(sanitizedText) ?: continue
             try {
                 // Determine group order based on match index/structure
                 val amountStr: String
                 val merchantRaw: String
 
-                if (index == 2) {
-                    // Pattern 3 has merchant first, then amount
+                if (index == 1) {
+                    // Pattern 1 has merchant first, then amount
                     merchantRaw = match.groupValues[1]
                     amountStr = match.groupValues[2]
                 } else {
-                    // Patterns 1 & 2 have amount first, then merchant
+                    // Pattern 0 has amount first, then merchant
                     amountStr = match.groupValues[1]
                     merchantRaw = match.groupValues[2]
                 }

@@ -45,7 +45,6 @@ import com.chetan.minfinance.service.SmsNotificationListenerService
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
-import com.chetan.minfinance.service.PaytmAccessibilityService
 
 // Category mapping helper
 data class CategoryUi(
@@ -85,12 +84,8 @@ fun DashboardScreen(
     val categorizedExpenses by viewModel.categorizedExpenses.collectAsStateWithLifecycle()
 
     // State for notification permission checking
-    // State for notification permission checking
     var isPermissionGranted by remember {
         mutableStateOf(SmsNotificationListenerService.isPermissionGranted(context))
-    }
-    var isAccessibilityGranted by remember {
-        mutableStateOf(PaytmAccessibilityService.isPermissionGranted(context))
     }
 
     // Checking system permission on lifecycle/resume
@@ -99,7 +94,6 @@ fun DashboardScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isPermissionGranted = SmsNotificationListenerService.isPermissionGranted(context)
-                isAccessibilityGranted = com.chetan.minfinance.service.PaytmAccessibilityService.isPermissionGranted(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -193,142 +187,71 @@ fun DashboardScreen(
                 .padding(horizontal = 24.dp), // Spacious structural padding
             verticalArrangement = Arrangement.spacedBy(28.dp) // Beautiful editorial spacing scale
         ) {
-            // Section 0: Permission Banners
-            if (!isAccessibilityGranted || !isPermissionGranted) {
+            // Section 0: Permission Banner
+            if (!isPermissionGranted) {
                 item {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(vertical = 4.dp)
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     ) {
-                        if (!isAccessibilityGranted) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f)
-                                ),
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.secondary),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Accessibility,
-                                                contentDescription = "Accessibility Alert",
-                                                tint = MaterialTheme.colorScheme.onSecondary
-                                            )
-                                        }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Paytm Scraper Suspended",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                                            )
-                                            Text(
-                                                text = "Enable Paytm Accessibility Integration to capture Paytm payments instantly screen-to-app.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                    }
-                                    Button(
-                                        onClick = {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                }
-                                            )
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.secondary,
-                                            contentColor = MaterialTheme.colorScheme.onSecondary
-                                        ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .align(Alignment.End)
-                                            .testTag("grant_accessibility_permission_button")
-                                    ) {
-                                        Text("Configure Paytm Scraper", fontWeight = FontWeight.Bold)
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.NotificationsActive,
+                                        contentDescription = "Alert",
+                                        tint = MaterialTheme.colorScheme.onError
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "IndusInd Email Sync Paused",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        text = "Grant Notification Access to allow Finbox to securely scan Gmail for IndusInd credit card alerts.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                    )
                                 }
                             }
-                        }
-
-                        if (!isPermissionGranted) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                            Button(
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
                                 ),
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .testTag("grant_permission_button")
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.error),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.NotificationsActive,
-                                                contentDescription = "Alert",
-                                                tint = MaterialTheme.colorScheme.onError
-                                            )
-                                        }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Sync Interceptor Suspended",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onErrorContainer
-                                            )
-                                            Text(
-                                                text = "Grant Notification access to enable automatic Paytm/UPI intercept scans.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                    }
-                                    Button(
-                                        onClick = {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                }
-                                            )
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.error,
-                                            contentColor = MaterialTheme.colorScheme.onError
-                                        ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .align(Alignment.End)
-                                            .testTag("grant_permission_button")
-                                    ) {
-                                        Text("Configure Notification Sync", fontWeight = FontWeight.Bold)
-                                    }
-                                }
+                                Text("Configure Access", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -494,7 +417,7 @@ fun DashboardScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Your inbox is perfectly clean. All transactions intercepted through Paytm, Google Pay, PhonePe, or simulated SMS have been processed.",
+                            text = "Your inbox is perfectly clean. All credit card alerts intercepted from Gmail matching IndusInd Credit Card have been processed.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -571,10 +494,8 @@ fun DashboardScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val presets = listOf(
-                                "Paid ₹120 to Swiggy via UPI",
-                                "Successfully paid Rs 450 to Swiggy",
-                                "Rs 3400 debited at Petrol Pump",
-                                "Transaction at Netflix for Rs 299"
+                                "Transaction alert: INR 450.00 spent at SWIGGY on your IndusInd Credit Card.",
+                                "An amount of INR 1,250.50 has been debited at AMAZON PAY on your IndusInd Card."
                             )
                             presets.forEach { preset ->
                                 SuggestionChip(
