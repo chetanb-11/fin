@@ -45,6 +45,7 @@ import com.chetan.minfinance.service.SmsNotificationListenerService
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import com.chetan.minfinance.service.PaytmAccessibilityService
 
 // Category mapping helper
 data class CategoryUi(
@@ -84,11 +85,12 @@ fun DashboardScreen(
     val categorizedExpenses by viewModel.categorizedExpenses.collectAsStateWithLifecycle()
 
     // State for notification permission checking
+    // State for notification permission checking
     var isPermissionGranted by remember {
         mutableStateOf(SmsNotificationListenerService.isPermissionGranted(context))
     }
     var isAccessibilityGranted by remember {
-        mutableStateOf(com.chetan.minfinance.service.PaytmAccessibilityService.isPermissionGranted(context))
+        mutableStateOf(PaytmAccessibilityService.isPermissionGranted(context))
     }
 
     // Checking system permission on lifecycle/resume
