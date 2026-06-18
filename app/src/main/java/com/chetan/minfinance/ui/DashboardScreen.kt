@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
@@ -81,6 +82,17 @@ fun getCategoryUiOf(name: String?): CategoryUi {
     )
 }
 
+enum class FinboxTab(
+    val title: String,
+    val icon: ImageVector,
+    val testTag: String
+) {
+    INBOX("inbox", Icons.Default.Inbox, "tab_inbox"),
+    LEDGER("ledger", Icons.Default.History, "tab_ledger"),
+    INSIGHTS("insights", Icons.Default.BarChart, "tab_insights"),
+    CONTROL_CENTER("control center", Icons.Default.Settings, "tab_control_center")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -135,13 +147,27 @@ fun DashboardScreen(
         }
     }
 
+    var currentTab by remember { mutableStateOf(FinboxTab.INBOX) }
+
     Scaffold(
         topBar = {
             LargeTopAppBar(
                 title = {
                     Column(modifier = Modifier.padding(end = 16.dp)) {
+                        val titleText = when (currentTab) {
+                            FinboxTab.INBOX -> "Inbox"
+                            FinboxTab.LEDGER -> "Ledger"
+                            FinboxTab.INSIGHTS -> "Insights"
+                            FinboxTab.CONTROL_CENTER -> "Control Center"
+                        }
+                        val subtitleText = when (currentTab) {
+                            FinboxTab.INBOX -> "Verify and categorize incoming card alerts"
+                            FinboxTab.LEDGER -> "Timeline of structured transactions"
+                            FinboxTab.INSIGHTS -> "Spending analytics and month summary"
+                            FinboxTab.CONTROL_CENTER -> "Settings, sync stats and sandbox"
+                        }
                         Text(
-                            text = "Finbox",
+                            text = titleText,
                             style = MaterialTheme.typography.displaySmall.copy(
                                 fontWeight = FontWeight.Black,
                                 fontFamily = FontFamily.SansSerif,
@@ -149,7 +175,7 @@ fun DashboardScreen(
                             )
                         )
                         Text(
-                            text = "Clean on-device expense tracking",
+                            text = subtitleText,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium
@@ -158,16 +184,17 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
-                    // Reset Database
-                    IconButton(
-                        onClick = { viewModel.clearAllData() },
-                        modifier = Modifier.testTag("reset_database_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteSweep,
-                            contentDescription = "Clear all data",
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    if (currentTab == FinboxTab.CONTROL_CENTER) {
+                        IconButton(
+                            onClick = { viewModel.clearAllData() },
+                            modifier = Modifier.testTag("reset_database_top_shortcut")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "Clear all data",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
@@ -175,607 +202,767 @@ fun DashboardScreen(
                 )
             )
         },
+        bottomBar = {
+            NavigationBar(
+                modifier = Modifier.testTag("bottom_navigation_bar"),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            ) {
+                // Return Enum values
+                FinboxTab.values().forEach { tab ->
+                    NavigationBarItem(
+                        selected = currentTab == tab,
+                        onClick = { currentTab = tab },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.title
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = tab.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        modifier = Modifier.testTag(tab.testTag)
+                    )
+                }
+            }
+        },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showManualAddDialog = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = "Add Expense") },
-                text = { Text("Add Expense", fontWeight = FontWeight.Bold) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .testTag("fab_add_expense")
-            )
+            if (currentTab == FinboxTab.INBOX || currentTab == FinboxTab.LEDGER) {
+                ExtendedFloatingActionButton(
+                    onClick = { showManualAddDialog = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Add Expense") },
+                    text = { Text("Add Expense", fontWeight = FontWeight.Bold) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .testTag("fab_add_expense")
+                )
+            }
         },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp), // Spacious structural padding
-            verticalArrangement = Arrangement.spacedBy(28.dp) // Beautiful editorial spacing scale
-        ) {
-            // Section 0: Permission Banner
-            if (!isPermissionGranted) {
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+        when (currentTab) {
+            FinboxTab.INBOX -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Inbox,
+                                    contentDescription = "Inbox",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    text = "Inbox (Uncategorized)",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = (-0.5).sp
+                                )
+                            }
+                            if (uncategorizedExpenses.isNotEmpty()) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.scale(1.1f)
+                                ) {
+                                    Text(
+                                        text = "${uncategorizedExpenses.size}",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (uncategorizedExpenses.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    .padding(horizontal = 24.dp, vertical = 36.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(64.dp)
                                         .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.error),
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.NotificationsActive,
-                                        contentDescription = "Alert",
-                                        tint = MaterialTheme.colorScheme.onError
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Inbox Clear",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(32.dp)
                                     )
                                 }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "IndusInd Email Sync Paused",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                    Text(
-                                        text = "Grant Notification Access to allow Finbox to securely scan Gmail for IndusInd credit card alerts.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
-                                    )
-                                }
-                            }
-                            Button(
-                                onClick = {
-                                    context.startActivity(
-                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                        }
-                                    )
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .align(Alignment.End)
-                                    .testTag("grant_permission_button")
-                            ) {
-                                Text("Configure Access", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Section 1: Dashboard Analytics Summary
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Total Outstanding card
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                text = "INBOX UNREAD",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "${uncategorizedExpenses.size}",
-                                style = MaterialTheme.typography.displayLarge.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = (-2.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                            Text(
-                                text = "items pending",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            )
-                        }
-                    }
-
-                    // Total spent tracked
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        val totalSpent = remember(categorizedExpenses) {
-                            categorizedExpenses.sumOf { if (it.isIncome) -it.amount else it.amount }
-                        }
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                text = "NET TRACED",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = formatFormatter.format(totalSpent),
-                                style = MaterialTheme.typography.displayLarge.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = (-2.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "all-time net balance",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Section 1.5: Spending Category Donut Chart
-            item {
-                val currentMonthExpenses = remember(categorizedExpenses, uncategorizedExpenses) {
-                    val calendar = Calendar.getInstance()
-                    val thisYear = calendar.get(Calendar.YEAR)
-                    val thisMonth = calendar.get(Calendar.MONTH)
-
-                    // Combine categorized and uncategorized (treating uncategorized as "Other")
-                    val all = (categorizedExpenses + uncategorizedExpenses).filter { !it.isIncome }
-                    
-                    all.filter { expense ->
-                        val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
-                        expCal.get(Calendar.YEAR) == thisYear && expCal.get(Calendar.MONTH) == thisMonth
-                    }
-                }
-
-                val categoryAmounts = remember(currentMonthExpenses) {
-                    val map = mutableMapOf<String, Double>()
-                    currentMonthExpenses.forEach { exp ->
-                        val cat = exp.category ?: "Other"
-                        map[cat] = (map[cat] ?: 0.0) + exp.amount
-                    }
-                    map
-                }
-
-                val totalCurrentMonthSpent = remember(categoryAmounts) {
-                    categoryAmounts.values.sum()
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.primaryContainer,
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PieChart,
-                                    contentDescription = "Spending Breakdown",
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
                                 Text(
-                                    text = "Monthly Spending Summary",
+                                    text = "All caught up!",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "IndusInd credit card spending by category",
+                                    text = "Your inbox is perfectly clean. All credit card alerts intercepted from Gmail matching IndusInd Credit Card have been processed.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
                                 )
                             }
                         }
+                    } else {
+                        items(
+                            items = uncategorizedExpenses,
+                            key = { it.id }
+                        ) { item ->
+                            Box(modifier = Modifier.animateItem()) {
+                                UncategorizedExpenseCard(
+                                    expense = item,
+                                    formatter = formatFormatter,
+                                    onCategorize = { cat -> viewModel.categorizeExpense(item, cat) },
+                                    onDelete = { viewModel.deleteExpense(item) },
+                                    onClick = { editingExpense = item }
+                                )
+                            }
+                        }
+                    }
 
-                        if (currentMonthExpenses.isEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(96.dp))
+                    }
+                }
+            }
+            FinboxTab.LEDGER -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = "History",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = "Categorized Transactions",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = (-0.5).sp
+                                    )
+                                }
+                                if (filteredHistory.isNotEmpty()) {
+                                    Text(
+                                        text = "${filteredHistory.size} items",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = searchHistoryQuery,
+                                onValueChange = { searchHistoryQuery = it },
+                                placeholder = { Text("Filter by merchant or category...") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                                trailingIcon = {
+                                    if (searchHistoryQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchHistoryQuery = "" }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("history_search_input"),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
+
+                    if (filteredHistory.isEmpty()) {
+                        item {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
+                                    .padding(vertical = 4.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
+                                    .padding(32.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "No on-device transactions found in the active calendar month.",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = if (searchHistoryQuery.trim().isEmpty()) {
+                                        "No history records found yet.\nCategories chosen from your inbox land here."
+                                    } else {
+                                        "No matches found for \"$searchHistoryQuery\"."
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    fontWeight = FontWeight.Normal,
+                                    lineHeight = 22.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            items = filteredHistory,
+                            key = { it.id }
+                        ) { item ->
+                            Box(modifier = Modifier.animateItem()) {
+                                CategorizedExpenseCard(
+                                    expense = item,
+                                    formatter = formatFormatter,
+                                    onUncategorize = {
+                                        viewModel.categorizeExpense(item.copy(isCategorized = false, category = null), "")
+                                    },
+                                    onDelete = { viewModel.deleteExpense(item) },
+                                    onClick = { editingExpense = item }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(96.dp))
+                    }
+                }
+            }
+            FinboxTab.INSIGHTS -> {
+                val currentMonthCategorizedExpenses = remember(categorizedExpenses) {
+                    val calendar = Calendar.getInstance()
+                    val thisYear = calendar.get(Calendar.YEAR)
+                    val thisMonth = calendar.get(Calendar.MONTH)
+                    categorizedExpenses.filter { expense ->
+                        val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
+                        expCal.get(Calendar.YEAR) == thisYear && expCal.get(Calendar.MONTH) == thisMonth
+                    }
+                }
+
+                val currentMonthTotal = remember(currentMonthCategorizedExpenses) {
+                    currentMonthCategorizedExpenses.sumOf { if (it.isIncome) -it.amount else it.amount }
+                }
+
+                val categoryBreakdown = remember(currentMonthCategorizedExpenses) {
+                    currentMonthCategorizedExpenses
+                        .filter { !it.isIncome }
+                        .groupBy { it.category ?: "Other" }
+                        .mapValues { (_, list) -> list.sumOf { it.amount } }
+                        .toList()
+                        .sortedByDescending { it.second }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // 2. The Hero Card (Current Month Spend)
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("insights_hero_card"),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            ),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "THIS MONTH'S SPEND",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    )
+                                )
+                                Text(
+                                    text = formatFormatter.format(currentMonthTotal),
+                                    style = MaterialTheme.typography.displayLarge.copy(
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = (-1.5).sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. The Category Breakdown List (Visual Analytics)
+                    if (categoryBreakdown.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No IndusInd spending detected this month.",
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
                             }
-                        } else {
-                            DonutChart(
-                                categoryAmounts = categoryAmounts,
-                                totalAmount = totalCurrentMonthSpent,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
                         }
-                    }
-                }
-            }
-
-            // Section 2: Inbox (Uncategorized) Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Inbox,
-                            contentDescription = "Inbox",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            text = "Inbox (Uncategorized)",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = (-0.5).sp
-                        )
-                    }
-                    if (uncategorizedExpenses.isNotEmpty()) {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.scale(1.1f)
-                        ) {
+                    } else {
+                        item {
                             Text(
-                                text = "${uncategorizedExpenses.size}",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Section 3: Inbox (Uncategorized) Items with Swipe to Dismiss and animation
-            if (uncategorizedExpenses.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(24.dp)
-                            )
-                            .padding(horizontal = 24.dp, vertical = 36.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Inbox Clear",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                        Text(
-                            text = "All caught up!",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Your inbox is perfectly clean. All credit card alerts intercepted from Gmail matching IndusInd Credit Card have been processed.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-                }
-            } else {
-                items(
-                    items = uncategorizedExpenses,
-                    key = { it.id }
-                ) { item ->
-                    Box(modifier = Modifier.animateItem()) {
-                        UncategorizedExpenseCard(
-                            expense = item,
-                            formatter = formatFormatter,
-                            onCategorize = { cat -> viewModel.categorizeExpense(item, cat) },
-                            onDelete = { viewModel.deleteExpense(item) },
-                            onClick = { editingExpense = item }
-                        )
-                    }
-                }
-            }
-
-            // Section 4: Live SMS Sandbox Panel for Easy Testing
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.BugReport,
-                                contentDescription = "Sandbox",
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Text(
-                                text = "Payment SMS Sandbox (Real-time Simulation)",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                        Text(
-                            text = "Trigger our regex matching engine manually to simulate intercepted payment push notifications.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                        )
-
-                        // Quick presets
-                        Text(
-                            text = "Quick Presets:",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                        )
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val presets = listOf(
-                                "Alert: Your IndusInd Credit Card spent at SWIGGY is Approved for INR 450.00.",
-                                "Transaction at AMAZON PAY is Approved on your IndusInd Credit Card for INR 1,250.50.",
-                                "Hello, transaction at UBER is Approved on your IndusInd CC for INR 320.00."
-                            )
-                            presets.forEach { preset ->
-                                SuggestionChip(
-                                    onClick = { mockSmsText = preset },
-                                    label = { Text(preset, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
-                                    modifier = Modifier.testTag("sandbox_chip_$preset")
-                                )
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = mockSmsText,
-                            onValueChange = { mockSmsText = it },
-                            placeholder = { Text("Enter mock payment SMS or check presets...") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("sandbox_sms_textfield"),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                            )
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = {
-                                    if (mockSmsText.trim().isNotEmpty()) {
-                                        val succeeded = viewModel.simulateNotificationReceipt(mockSmsText)
-                                        if (succeeded) {
-                                            mockSmsText = ""
-                                        }
-                                    }
-                                },
-                                enabled = mockSmsText.trim().isNotEmpty(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary
+                                text = "CATEGORY BREAKDOWN",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
                                 ),
-                                modifier = Modifier.testTag("simulate_button")
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+
+                        items(
+                            items = categoryBreakdown,
+                            key = { it.first }
+                        ) { (category, amount) ->
+                            val categoryUi = getCategoryUiOf(category)
+                            val progress = if (currentMonthTotal > 0.0) (amount / currentMonthTotal).toFloat() else 0f
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("category_breakdown_item_$category"),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                ),
+                                shape = RoundedCornerShape(16.dp)
                             ) {
-                                Text("Feed to Scanner", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    // a) The Category Icon (using the 'getCategoryUiOf' helper)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .background(
+                                                color = categoryUi.color.copy(alpha = 0.15f),
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = categoryUi.icon,
+                                            contentDescription = categoryUi.name,
+                                            tint = categoryUi.color,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
 
-            // Section 5: History Header with Search Box
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = "History",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Text(
-                                text = "Categorized Transactions",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = (-0.5).sp
-                            )
-                        }
-                        if (filteredHistory.isNotEmpty()) {
-                            Text(
-                                text = "${filteredHistory.size} items",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
+                                    // b) Name + Amount and c) LinearProgressIndicator
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = categoryUi.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = formatFormatter.format(amount),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
 
-                    // Search TextField with modern rounded borders
-                    OutlinedTextField(
-                        value = searchHistoryQuery,
-                        onValueChange = { searchHistoryQuery = it },
-                        placeholder = { Text("Filter by merchant or category...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        trailingIcon = {
-                            if (searchHistoryQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchHistoryQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                        LinearProgressIndicator(
+                                            progress = progress,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(8.dp)
+                                                .clip(RoundedCornerShape(4.dp)),
+                                            color = categoryUi.color,
+                                            trackColor = categoryUi.color.copy(alpha = 0.15f)
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("history_search_input"),
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-                }
-            }
-
-            // Section 6: History Items List with spring animations & sleek timeline ledger details
-            if (filteredHistory.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (searchHistoryQuery.trim().isEmpty()) {
-                                "No history records found yet.\nCategories chosen from your inbox land here."
-                            } else {
-                                "No matches found for \"$searchHistoryQuery\"."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontWeight = FontWeight.Normal,
-                            lineHeight = 22.sp,
-                            textAlign = TextAlign.Center
-                        )
+                        }
                     }
-                }
-            } else {
-                items(
-                    items = filteredHistory,
-                    key = { it.id }
-                ) { item ->
-                    Box(modifier = Modifier.animateItem()) {
-                        CategorizedExpenseCard(
-                            expense = item,
-                            formatter = formatFormatter,
-                            onUncategorize = {
-                                viewModel.categorizeExpense(item.copy(isCategorized = false, category = null), "")
-                            },
-                            onDelete = { viewModel.deleteExpense(item) },
-                            onClick = { editingExpense = item }
-                        )
+
+                    item {
+                        Spacer(modifier = Modifier.height(96.dp))
                     }
                 }
             }
+            FinboxTab.CONTROL_CENTER -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
 
-            // Bottom Spacing
-            item {
-                Spacer(modifier = Modifier.height(96.dp))
+                    // System Warning Banner / Config
+                    item {
+                        if (!isPermissionGranted) {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                                ),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.error),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.NotificationsActive,
+                                                contentDescription = "Alert",
+                                                tint = MaterialTheme.colorScheme.onError
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "IndusInd Email Sync Paused",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Text(
+                                                text = "Grant Notification Access to allow Finbox to securely scan Gmail for IndusInd credit card alerts.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+                                    Button(
+                                        onClick = {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                            )
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .align(Alignment.End)
+                                            .testTag("grant_permission_button")
+                                    ) {
+                                        Text("Configure Access", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                ),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(20.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Active",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "Gmail Interceptor Active",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "Listening for IndusInd credit card e-mail notification bursts securely.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Sandbox section
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.BugReport,
+                                        contentDescription = "Sandbox",
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Text(
+                                        text = "Payment SMS Sandbox (Real-time Simulation)",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                                Text(
+                                    text = "Trigger our regex matching engine manually to simulate intercepted payment push notifications.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                )
+
+                                // Quick presets
+                                Text(
+                                    text = "Quick Presets:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val presets = listOf(
+                                        "Alert: Your IndusInd Credit Card spent at SWIGGY is Approved for INR 450.00.",
+                                        "Transaction at AMAZON PAY is Approved on your IndusInd Credit Card for INR 1,250.50.",
+                                        "Hello, transaction at UBER is Approved on your IndusInd CC for INR 320.00."
+                                    )
+                                    presets.forEach { preset ->
+                                        SuggestionChip(
+                                            onClick = { mockSmsText = preset },
+                                            label = { Text(preset, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                                            modifier = Modifier.testTag("sandbox_chip_$preset")
+                                        )
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = mockSmsText,
+                                    onValueChange = { mockSmsText = it },
+                                    placeholder = { Text("Enter mock payment SMS or check presets...") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("sandbox_sms_textfield"),
+                                    textStyle = MaterialTheme.typography.bodySmall,
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            if (mockSmsText.trim().isNotEmpty()) {
+                                                val succeeded = viewModel.simulateNotificationReceipt(mockSmsText)
+                                                if (succeeded) {
+                                                    mockSmsText = ""
+                                                }
+                                            }
+                                        },
+                                        enabled = mockSmsText.trim().isNotEmpty(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.secondary
+                                        ),
+                                        modifier = Modifier.testTag("simulate_button")
+                                    ) {
+                                        Text("Feed to Scanner", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Master data wipe action
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.08f)
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteSweep,
+                                        contentDescription = "Sweep",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = "Master Database Sweep",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                                Text(
+                                    text = "Permanently clear all user transactions from local SQLite cache. This operation is fully irreversible.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Button(
+                                    onClick = { viewModel.clearAllData() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .align(Alignment.End)
+                                        .testTag("reset_database_button")
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Text("Clear All Data", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(96.dp))
+                    }
+                }
             }
         }
     }
