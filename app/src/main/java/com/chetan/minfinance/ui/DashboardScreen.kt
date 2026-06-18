@@ -34,8 +34,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import kotlin.math.atan2
+import kotlin.math.sqrt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -341,6 +351,106 @@ fun DashboardScreen(
                 }
             }
 
+            // Section 1.5: Spending Category Donut Chart
+            item {
+                val currentMonthExpenses = remember(categorizedExpenses, uncategorizedExpenses) {
+                    val calendar = Calendar.getInstance()
+                    val thisYear = calendar.get(Calendar.YEAR)
+                    val thisMonth = calendar.get(Calendar.MONTH)
+
+                    // Combine categorized and uncategorized (treating uncategorized as "Other")
+                    val all = (categorizedExpenses + uncategorizedExpenses).filter { !it.isIncome }
+                    
+                    all.filter { expense ->
+                        val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
+                        expCal.get(Calendar.YEAR) == thisYear && expCal.get(Calendar.MONTH) == thisMonth
+                    }
+                }
+
+                val categoryAmounts = remember(currentMonthExpenses) {
+                    val map = mutableMapOf<String, Double>()
+                    currentMonthExpenses.forEach { exp ->
+                        val cat = exp.category ?: "Other"
+                        map[cat] = (map[cat] ?: 0.0) + exp.amount
+                    }
+                    map
+                }
+
+                val totalCurrentMonthSpent = remember(categoryAmounts) {
+                    categoryAmounts.values.sum()
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PieChart,
+                                    contentDescription = "Spending Breakdown",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Monthly Spending Summary",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "IndusInd credit card spending by category",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (currentMonthExpenses.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No on-device transactions found in the active calendar month.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            DonutChart(
+                                categoryAmounts = categoryAmounts,
+                                totalAmount = totalCurrentMonthSpent,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Section 2: Inbox (Uncategorized) Header
             item {
                 Row(
@@ -494,8 +604,9 @@ fun DashboardScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val presets = listOf(
-                                "Transaction alert: INR 450.00 spent at SWIGGY on your IndusInd Credit Card.",
-                                "An amount of INR 1,250.50 has been debited at AMAZON PAY on your IndusInd Card."
+                                "Alert: Your IndusInd Credit Card spent at SWIGGY is Approved for INR 450.00.",
+                                "Transaction at AMAZON PAY is Approved on your IndusInd Credit Card for INR 1,250.50.",
+                                "Hello, transaction at UBER is Approved on your IndusInd CC for INR 320.00."
                             )
                             presets.forEach { preset ->
                                 SuggestionChip(
@@ -1312,3 +1423,216 @@ fun EditTransactionDialog(
         }
     )
 }
+
+@Composable
+fun DonutChart(
+    categoryAmounts: Map<String, Double>,
+    totalAmount: Double,
+    modifier: Modifier = Modifier
+) {
+    if (categoryAmounts.isEmpty() || totalAmount <= 0.0) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No spending data this month",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
+    }
+
+    val categoriesList = categoryAmounts.keys.toList()
+    var activeSliceIndex by remember { mutableStateOf(-1) }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Donut circle Canvas
+        Box(
+            modifier = Modifier
+                .size(130.dp)
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(categoryAmounts) {
+                        detectTapGestures { offset ->
+                            val center = size.width / 2f
+                            val x = offset.x - center
+                            val y = offset.y - center
+                            val distance = sqrt(x * x + y * y)
+                            // check if inside the donut outer/inner region
+                            if (distance in (center * 0.4f)..(center * 1.15f)) {
+                                var angle = Math.toDegrees(atan2(y.toDouble(), x.toDouble())).toFloat()
+                                if (angle < 0) angle += 360f
+
+                                var currentAngle = 0f
+                                var matchedIndex = -1
+                                for (i in categoriesList.indices) {
+                                    val cat = categoriesList[i]
+                                    val amt = categoryAmounts[cat] ?: 0.0
+                                    val sweep = ((amt / totalAmount) * 360f).toFloat()
+                                    val startAngle = currentAngle
+                                    val endAngle = currentAngle + sweep
+                                    
+                                    if (angle >= startAngle && angle < endAngle) {
+                                        matchedIndex = i
+                                        break
+                                    }
+                                    currentAngle += sweep
+                                }
+                                activeSliceIndex = if (activeSliceIndex == matchedIndex) -1 else matchedIndex
+                            } else {
+                                activeSliceIndex = -1
+                            }
+                        }
+                    }
+                    .testTag("donut_chart_canvas")
+            ) {
+                var startAngle = 0f
+                val strokeWidth = 24.dp.toPx()
+                val radius = (size.width - strokeWidth) / 2f
+                val centerOffset = Offset(size.width / 2f, size.height / 2f)
+
+                categoriesList.forEachIndexed { index, cat ->
+                    val color = getCategoryUiOf(cat).color
+                    val amount = categoryAmounts[cat] ?: 0.0
+                    val sweepAngle = ((amount / totalAmount) * 360f).toFloat()
+                    
+                    val isHighlighted = activeSliceIndex == index || activeSliceIndex == -1
+                    val alpha = if (isHighlighted) 1.0f else 0.35f
+                    val extraStroke = if (activeSliceIndex == index) 4.dp.toPx() else 0f
+
+                    drawArc(
+                        color = color.copy(alpha = alpha),
+                        startAngle = startAngle,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        topLeft = Offset(centerOffset.x - radius, centerOffset.y - radius),
+                        size = Size(radius * 2, radius * 2),
+                        style = Stroke(width = strokeWidth + extraStroke, cap = StrokeCap.Round)
+                    )
+                    startAngle += sweepAngle
+                }
+            }
+
+            // central display inside the donut hole
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val label = if (activeSliceIndex in categoriesList.indices) {
+                    categoriesList[activeSliceIndex]
+                } else {
+                    "Total"
+                }
+
+                val value = if (activeSliceIndex in categoriesList.indices) {
+                    categoryAmounts[categoriesList[activeSliceIndex]] ?: 0.0
+                } else {
+                    totalAmount
+                }
+
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                        fontSize = 9.sp
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "₹${String.format("%,.0f", value)}",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                if (activeSliceIndex in categoriesList.indices) {
+                    val pct = ((value / totalAmount) * 100).toInt()
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = getCategoryUiOf(label).color,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        // Legend of categories on the right side
+        Column(
+            modifier = Modifier.weight(1.2f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            categoriesList.forEachIndexed { index, cat ->
+                val color = getCategoryUiOf(cat).color
+                val amount = categoryAmounts[cat] ?: 0.0
+                val pct = ((amount / totalAmount) * 100).toInt()
+                val isSelectedOrAll = activeSliceIndex == index || activeSliceIndex == -1
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (activeSliceIndex == index) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            else Color.Transparent
+                        )
+                        .clickable {
+                            activeSliceIndex = if (activeSliceIndex == index) -1 else index
+                        }
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(color.copy(alpha = if (isSelectedOrAll) 1f else 0.4f))
+                        )
+                        Text(
+                            text = cat,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (activeSliceIndex == index) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelectedOrAll) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelectedOrAll) color else color.copy(alpha = 0.4f),
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
