@@ -586,82 +586,19 @@ fun DashboardScreen(
                             )
                         }
 
-                        items(
-                            items = categoryBreakdown,
-                            key = { it.first }
-                        ) { (category, amount) ->
-                            val categoryUi = getCategoryUiOf(category)
-                            val progress = if (currentMonthTotal > 0.0) (amount / currentMonthTotal).toFloat() else 0f
-
+                        item {
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("category_breakdown_item_$category"),
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
                                 ),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(24.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    // a) The Category Icon (using the 'getCategoryUiOf' helper)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .background(
-                                                color = categoryUi.color.copy(alpha = 0.15f),
-                                                shape = CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = categoryUi.icon,
-                                            contentDescription = categoryUi.name,
-                                            tint = categoryUi.color,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    // b) Name + Amount and c) LinearProgressIndicator
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = categoryUi.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = formatFormatter.format(amount),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-
-                                        LinearProgressIndicator(
-                                            progress = progress,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
-                                            color = categoryUi.color,
-                                            trackColor = categoryUi.color.copy(alpha = 0.15f)
-                                        )
-                                    }
-                                }
+                                DonutChart(
+                                    categoryAmounts = categoryBreakdown.toMap(),
+                                    totalAmount = currentMonthTotal,
+                                    modifier = Modifier.padding(24.dp)
+                                )
                             }
                         }
                     }
