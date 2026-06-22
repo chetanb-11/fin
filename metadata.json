@@ -1,5 +1,5 @@
 {
-  "name": "Personal Finance",
+  "name": "FINANCER",
   "description": "A minimalist on-device personal finance manager with notification parsing for automatic tracking.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
