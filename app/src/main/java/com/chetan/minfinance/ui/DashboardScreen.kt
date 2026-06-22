@@ -175,34 +175,14 @@ fun DashboardScreen(
         val cardsList = remember(activeOutstandingBalance, liveCardUtilization) {
             listOf(
                 CreditCardModel(
-                    cardName = "IndusInd Legend",
-                    cardType = "VISA SIGNATURE",
-                    limit = liveCardLimit,
-                    lastFour = "8421",
+                    cardName = "IndusInd Tracker", // You can change this to your real card name
+                    cardType = "PRIMARY ACCOUNT",
+                    limit = liveCardLimit, 
+                    lastFour = "3403", // Matching your email screenshot
                     backgroundBrush = Brush.linearGradient(
                         colors = listOf(CardGradVioletStart, CardGradVioletEnd)
                     ),
                     isLive = true
-                ),
-                CreditCardModel(
-                    cardName = "IndusInd eazyDiner",
-                    cardType = "PLATINUM PAY",
-                    limit = 150000.0,
-                    lastFour = "2640",
-                    backgroundBrush = Brush.linearGradient(
-                        colors = listOf(CardGradGoldStart, CardGradGoldEnd)
-                    ),
-                    isLive = false
-                ),
-                CreditCardModel(
-                    cardName = "IndusInd Nexxt",
-                    cardType = "MASTERCARD ELITE",
-                    limit = 300000.0,
-                    lastFour = "9901",
-                    backgroundBrush = Brush.linearGradient(
-                        colors = listOf(CardGradTealStart, CardGradTealEnd)
-                    ),
-                    isLive = false
                 )
             )
         }
