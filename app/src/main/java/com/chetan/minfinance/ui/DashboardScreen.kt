@@ -129,6 +129,7 @@ fun DashboardScreen(
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var searchHistoryQuery by remember { mutableStateOf("") }
         var mockSmsText by remember { mutableStateOf("") }
+        var formEditingExpense by remember { mutableStateOf<Expense?>(null) }
 
         // Form state inputs for BottomSheet
         var formAmount by remember { mutableStateOf("") }
@@ -216,6 +217,15 @@ fun DashboardScreen(
                     (it.category?.contains(searchHistoryQuery, ignoreCase = true) == true)
                 }
             }
+        }
+
+        // Calculate highest spending category from categorizedExpenses (excluding income)
+        val topSpendCategoryAndAmount = remember(categorizedExpenses) {
+            categorizedExpenses
+                .filter { !it.isIncome && it.category != null }
+                .groupBy { it.category!! }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+                .maxByOrNull { it.value }
         }
 
         // Entire layout built as a single continuous-scrolling LazyColumn
@@ -527,7 +537,8 @@ fun DashboardScreen(
                 }
 
                 // SECTION 3: Actionable Insight Cards
-                if (showInsightDining || showInsightScore) {
+                val hasInsightsToShow = (showInsightDining && topSpendCategoryAndAmount != null) || showInsightScore
+                if (hasInsightsToShow) {
                     item {
                         Column(
                             modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
@@ -542,10 +553,15 @@ fun DashboardScreen(
                             )
 
                             AnimatedVisibility(
-                                visible = showInsightDining,
+                                visible = showInsightDining && topSpendCategoryAndAmount != null,
                                 enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically() + fadeOut()
                             ) {
+                                val topCategoryName = topSpendCategoryAndAmount?.key ?: "Other"
+                                val topCategoryAmount = topSpendCategoryAndAmount?.value ?: 0.0
+                                val topCategoryUi = getCategoryUiOf(topCategoryName)
+                                val topCategoryAmountFormatted = formatFormatter.format(topCategoryAmount).replace("₹", "")
+
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
@@ -561,26 +577,26 @@ fun DashboardScreen(
                                             modifier = Modifier
                                                 .size(40.dp)
                                                 .background(
-                                                    color = Color(0xFFFF7043).copy(alpha = 0.15f),
+                                                    color = topCategoryUi.color.copy(alpha = 0.15f),
                                                     shape = CircleShape
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Fastfood,
-                                                contentDescription = "Food Alert",
-                                                tint = Color(0xFFFF7043)
+                                                imageVector = topCategoryUi.icon,
+                                                contentDescription = topCategoryName,
+                                                tint = topCategoryUi.color
                                             )
                                         }
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Dining spent is up 20%",
+                                                text = "Top Spend: $topCategoryName",
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "You've spent more than your typical budget on restaurant and delivery orders this month. Consider cooking to save.",
+                                                text = "You have traced ₹$topCategoryAmountFormatted in $topCategoryName expenses. Keep an eye on this category to stay within your mental budget.",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 lineHeight = 16.sp
@@ -606,6 +622,16 @@ fun DashboardScreen(
                                 enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically() + fadeOut()
                             ) {
+                                val isHighUtilization = liveCardUtilization > 30.0
+                                val iconColor = if (isHighUtilization) SoftRed else NeonGreen
+                                val title = if (isHighUtilization) "High Utilization" else "Excellent Credit Health"
+                                val bodyText = if (isHighUtilization) {
+                                    "Your card utilization is at ${String.format("%.1f", liveCardUtilization)}%. Try keeping it below 30% for optimal CIBIL health."
+                                } else {
+                                    "Your utilization is a safe ${String.format("%.1f", liveCardUtilization)}%. You are on track for maximum reward points and score growth."
+                                }
+                                val icon = if (isHighUtilization) Icons.Default.Warning else Icons.Default.CheckCircle
+
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
@@ -621,26 +647,26 @@ fun DashboardScreen(
                                             modifier = Modifier
                                                 .size(40.dp)
                                                 .background(
-                                                    color = NeonGreen.copy(alpha = 0.15f),
+                                                    color = iconColor.copy(alpha = 0.15f),
                                                     shape = CircleShape
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.TrendingUp,
-                                                contentDescription = "Credit Score",
-                                                tint = NeonGreen
+                                                imageVector = icon,
+                                                contentDescription = title,
+                                                tint = iconColor
                                             )
                                         }
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Earn up to 200 Reward Coins",
+                                                text = title,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "Completing your credit card repayments 5 days early dynamically elevates your CIBIL profile health metric.",
+                                                text = bodyText,
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 lineHeight = 16.sp
@@ -730,6 +756,7 @@ fun DashboardScreen(
                                     formAmount = item.amount.toString()
                                     formMerchantName = item.merchantName
                                     formIsIncome = item.isIncome
+                                    formEditingExpense = item
                                     showBottomSheet = true
                                 }
                             )
@@ -842,6 +869,7 @@ fun DashboardScreen(
                                     formMerchantName = item.merchantName
                                     formIsIncome = item.isIncome
                                     formSelectedCategory = item.category ?: CATEGORIES.first().name
+                                    formEditingExpense = item
                                     showBottomSheet = true
                                 }
                             )
@@ -1073,6 +1101,7 @@ fun DashboardScreen(
             ModalBottomSheet(
                 onDismissRequest = {
                     showBottomSheet = false
+                    formEditingExpense = null
                     // Reset form defaults
                     formAmount = ""
                     formMerchantName = ""
@@ -1249,17 +1278,30 @@ fun DashboardScreen(
                         onClick = {
                             val amt = formAmount.toDoubleOrNull()
                             if (amt != null && formMerchantName.trim().isNotEmpty()) {
-                                viewModel.addManualExpense(
-                                    merchantName = formMerchantName,
-                                    amount = amt,
-                                    category = formSelectedCategory,
-                                    isIncome = formIsIncome
-                                )
+                                if (formEditingExpense != null) {
+                                    viewModel.updateExpense(
+                                        formEditingExpense!!.copy(
+                                            merchantName = formMerchantName.trim(),
+                                            amount = amt,
+                                            category = formSelectedCategory,
+                                            isIncome = formIsIncome,
+                                            isCategorized = true
+                                        )
+                                    )
+                                } else {
+                                    viewModel.addManualExpense(
+                                        merchantName = formMerchantName,
+                                        amount = amt,
+                                        category = formSelectedCategory,
+                                        isIncome = formIsIncome
+                                    )
+                                }
                                 showBottomSheet = false
                                 // reset fields
                                 formAmount = ""
                                 formMerchantName = ""
                                 formIsIncome = false
+                                formEditingExpense = null
                             }
                         },
                         enabled = formAmount.isNotEmpty() && formMerchantName.trim().isNotEmpty(),
